@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ai } from '../lib/gemini';
-import { ShieldAlert, Loader2, Code2, UploadCloud, FileBox, CheckCircle, X, AlertTriangle, FileCode, Save, Play, Download } from 'lucide-react';
+import { ShieldAlert, Loader2, Code2, UploadCloud, FileBox, CheckCircle, X, AlertTriangle, FileCode, Save, Play, Download, Trash2, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type InputMode = 'code' | 'file';
@@ -198,6 +198,43 @@ export default function Analyzer() {
     const newFiles = [...virtualFiles];
     newFiles[activeFileIndex].content = e.target.value;
     setVirtualFiles(newFiles);
+  };
+
+  const handleDownloadMod = () => {
+    if (!selectedFile) return;
+    
+    // Cria um arquivo simulado para download
+    const content = `[SecAudit v2.0.0-DEFENSE] Modded APK Simulation\nOriginal File: ${selectedFile.name}\n\nEste é um arquivo simulado gerado pelo navegador.\nEm um ambiente desktop real, este seria o seu APK assinado e pronto para instalar.`;
+    const blob = new Blob([content], { type: 'application/vnd.android.package-archive' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    // Adiciona _mod no final do nome do arquivo
+    a.download = selectedFile.name.replace(/\.(apk|aab|zip)$/i, '_mod.apk');
+    document.body.appendChild(a);
+    a.click();
+    
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleClearReport = () => {
+    updateAnalysis('');
+    setPatchSuccess(false);
+  };
+
+  const handleDownloadReport = () => {
+    if (!analysis) return;
+    const blob = new Blob([analysis], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'SecAudit_Relatorio.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -427,17 +464,44 @@ export default function Analyzer() {
 
         {/* Right Panel - Report */}
         <div className="flex flex-col gap-4 mt-4 lg:mt-0">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 text-neon-green font-semibold">
               <ShieldAlert className="w-5 h-5" />
-              <span>Relatório de Segurança</span>
+              <span>Relatório</span>
             </div>
-            {patchSuccess && (
-              <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider bg-neon-green text-black px-3 py-1.5 rounded-lg hover:bg-neon-green/80 transition-colors animate-pulse">
-                <Download className="w-4 h-4" />
-                Baixar APK Mod
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {patchSuccess && (
+                <button 
+                  onClick={handleDownloadMod}
+                  className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider bg-neon-green text-black px-2 py-1.5 rounded-lg hover:bg-neon-green/80 transition-colors animate-pulse"
+                  title="Baixar APK Modificado"
+                >
+                  <Download className="w-3 h-3 md:w-4 md:h-4" />
+                  <span className="hidden sm:inline">APK Mod</span>
+                  <span className="sm:hidden">APK</span>
+                </button>
+              )}
+              {analysis && (
+                <>
+                  <button 
+                    onClick={handleDownloadReport}
+                    className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider bg-black/10 dark:bg-white/10 hover:bg-neon-green hover:text-black px-2 py-1.5 rounded-lg transition-colors"
+                    title="Baixar Relatório em .md"
+                  >
+                    <FileText className="w-3 h-3 md:w-4 md:h-4" />
+                    <span className="hidden sm:inline">Salvar</span>
+                  </button>
+                  <button 
+                    onClick={handleClearReport}
+                    className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold uppercase tracking-wider bg-black/10 dark:bg-white/10 hover:bg-red-500 hover:text-white px-2 py-1.5 rounded-lg transition-colors"
+                    title="Limpar Relatório"
+                  >
+                    <Trash2 className="w-3 h-3 md:w-4 md:h-4" />
+                    <span className="hidden sm:inline">Limpar</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <div className="flex-1 surface border rounded-xl p-4 md:p-6 overflow-y-auto prose prose-invert max-w-none min-h-[300px]">
             {analysis ? (
