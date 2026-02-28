@@ -2,10 +2,11 @@ import React, { useEffect } from 'react';
 import Analyzer from './components/Analyzer';
 import Chatbot from './components/Chatbot';
 import Vision from './components/Vision';
-import { Shield, MessageSquare, Image as ImageIcon, Moon, Sun, Monitor } from 'lucide-react';
+import FridaGenerator from './components/FridaGenerator';
+import { Shield, MessageSquare, Image as ImageIcon, Moon, Sun, Monitor, Terminal } from 'lucide-react';
 
 type Theme = 'light' | 'dark' | 'blackdark';
-type Tab = 'analyzer' | 'vision' | 'chatbot';
+type Tab = 'analyzer' | 'vision' | 'chatbot' | 'frida';
 
 export default function App() {
   const [theme, setTheme] = React.useState<Theme>('blackdark');
@@ -81,6 +82,18 @@ export default function App() {
           </button>
 
           <button
+            onClick={() => setActiveTab('frida')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
+              activeTab === 'frida' 
+                ? 'bg-neon-pink/10 text-neon-pink border border-neon-pink/20' 
+                : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70 hover:opacity-100'
+            }`}
+          >
+            <Terminal className="w-5 h-5" />
+            Gerador Frida
+          </button>
+
+          <button
             onClick={() => setActiveTab('chatbot')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
               activeTab === 'chatbot' 
@@ -115,6 +128,7 @@ export default function App() {
         <div className="max-w-6xl mx-auto h-full">
           {activeTab === 'analyzer' && <Analyzer />}
           {activeTab === 'vision' && <Vision />}
+          {activeTab === 'frida' && <FridaGenerator />}
           {activeTab === 'chatbot' && <Chatbot />}
         </div>
       </main>
@@ -123,32 +137,42 @@ export default function App() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 surface border-t border-inherit flex justify-around items-center p-2 pb-safe z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]">
         <button
           onClick={() => setActiveTab('analyzer')}
-          className={`flex flex-col items-center gap-1 p-2 w-20 transition-all ${
+          className={`flex flex-col items-center gap-1 p-2 w-16 transition-all ${
             activeTab === 'analyzer' ? 'text-neon-purple' : 'opacity-50'
           }`}
         >
-          <Shield className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Análise</span>
+          <Shield className="w-5 h-5" />
+          <span className="text-[9px] font-medium">Análise</span>
         </button>
         
         <button
           onClick={() => setActiveTab('vision')}
-          className={`flex flex-col items-center gap-1 p-2 w-20 transition-all ${
+          className={`flex flex-col items-center gap-1 p-2 w-16 transition-all ${
             activeTab === 'vision' ? 'text-neon-orange' : 'opacity-50'
           }`}
         >
-          <ImageIcon className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Visão</span>
+          <ImageIcon className="w-5 h-5" />
+          <span className="text-[9px] font-medium">Visão</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('frida')}
+          className={`flex flex-col items-center gap-1 p-2 w-16 transition-all ${
+            activeTab === 'frida' ? 'text-neon-pink' : 'opacity-50'
+          }`}
+        >
+          <Terminal className="w-5 h-5" />
+          <span className="text-[9px] font-medium">Frida</span>
         </button>
 
         <button
           onClick={() => setActiveTab('chatbot')}
-          className={`flex flex-col items-center gap-1 p-2 w-20 transition-all ${
+          className={`flex flex-col items-center gap-1 p-2 w-16 transition-all ${
             activeTab === 'chatbot' ? 'text-neon-green' : 'opacity-50'
           }`}
         >
-          <MessageSquare className="w-6 h-6" />
-          <span className="text-[10px] font-medium">Assistente</span>
+          <MessageSquare className="w-5 h-5" />
+          <span className="text-[9px] font-medium">Chat</span>
         </button>
       </nav>
 
