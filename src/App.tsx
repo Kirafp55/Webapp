@@ -8,7 +8,7 @@ type Theme = 'light' | 'dark' | 'blackdark';
 type Tab = 'analyzer' | 'vision' | 'chatbot';
 
 export default function App() {
-  const [theme, setTheme] = React.useState<Theme>('dark');
+  const [theme, setTheme] = React.useState<Theme>('blackdark');
   const [activeTab, setActiveTab] = React.useState<Tab>('analyzer');
 
   useEffect(() => {
@@ -16,9 +16,33 @@ export default function App() {
   }, [theme]);
 
   return (
-    <div className="min-h-screen flex font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 surface border-r flex flex-col">
+    <div className="min-h-screen flex flex-col md:flex-row font-sans bg-inherit">
+      
+      {/* ================= MOBILE HEADER ================= */}
+      <header className="md:hidden flex items-center justify-between p-4 surface border-b border-inherit sticky top-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-purple to-neon-cyan flex items-center justify-center shadow-lg shadow-neon-purple/20">
+            <Shield className="w-5 h-5 text-white" />
+          </div>
+          <h1 className="font-bold text-lg tracking-tight">SecAudit</h1>
+        </div>
+        
+        {/* Mobile Theme Switcher */}
+        <div className="flex gap-1 surface border border-inherit rounded-lg p-1">
+          <button onClick={() => setTheme('light')} className={`p-1.5 rounded-md transition-colors ${theme === 'light' ? 'bg-black/10' : 'opacity-50'}`}>
+            <Sun className="w-4 h-4" />
+          </button>
+          <button onClick={() => setTheme('dark')} className={`p-1.5 rounded-md transition-colors ${theme === 'dark' ? 'bg-white/10' : 'opacity-50'}`}>
+            <Moon className="w-4 h-4" />
+          </button>
+          <button onClick={() => setTheme('blackdark')} className={`p-1.5 rounded-md transition-colors ${theme === 'blackdark' ? 'bg-white/10 text-neon-cyan' : 'opacity-50'}`}>
+            <Monitor className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* ================= DESKTOP SIDEBAR ================= */}
+      <aside className="hidden md:flex w-64 surface border-r border-inherit flex-col sticky top-0 h-screen">
         <div className="p-6 border-b border-inherit">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-purple to-neon-cyan flex items-center justify-center shadow-lg shadow-neon-purple/20">
@@ -85,14 +109,49 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 p-8 overflow-y-auto">
+      {/* ================= MAIN CONTENT ================= */}
+      {/* pb-24 no mobile para não ficar escondido atrás da bottom nav */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto pb-24 md:pb-8">
         <div className="max-w-6xl mx-auto h-full">
           {activeTab === 'analyzer' && <Analyzer />}
           {activeTab === 'vision' && <Vision />}
           {activeTab === 'chatbot' && <Chatbot />}
         </div>
       </main>
+
+      {/* ================= MOBILE BOTTOM NAV ================= */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 surface border-t border-inherit flex justify-around items-center p-2 pb-safe z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]">
+        <button
+          onClick={() => setActiveTab('analyzer')}
+          className={`flex flex-col items-center gap-1 p-2 w-20 transition-all ${
+            activeTab === 'analyzer' ? 'text-neon-purple' : 'opacity-50'
+          }`}
+        >
+          <Shield className="w-6 h-6" />
+          <span className="text-[10px] font-medium">Análise</span>
+        </button>
+        
+        <button
+          onClick={() => setActiveTab('vision')}
+          className={`flex flex-col items-center gap-1 p-2 w-20 transition-all ${
+            activeTab === 'vision' ? 'text-neon-orange' : 'opacity-50'
+          }`}
+        >
+          <ImageIcon className="w-6 h-6" />
+          <span className="text-[10px] font-medium">Visão</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('chatbot')}
+          className={`flex flex-col items-center gap-1 p-2 w-20 transition-all ${
+            activeTab === 'chatbot' ? 'text-neon-green' : 'opacity-50'
+          }`}
+        >
+          <MessageSquare className="w-6 h-6" />
+          <span className="text-[10px] font-medium">Assistente</span>
+        </button>
+      </nav>
+
     </div>
   );
 }
