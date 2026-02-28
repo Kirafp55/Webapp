@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ai } from '../lib/gemini';
 import { ShieldAlert, Loader2, Code2, UploadCloud, FileBox, CheckCircle, X, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,10 +19,28 @@ export default function Analyzer() {
   const [fileError, setFileError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Carrega o último relatório salvo ao iniciar o componente
+  useEffect(() => {
+    const savedAnalysis = localStorage.getItem('secAudit_lastAnalysis');
+    if (savedAnalysis) {
+      setAnalysis(savedAnalysis);
+    }
+  }, []);
+
+  // Função auxiliar para atualizar o estado e o localStorage simultaneamente
+  const updateAnalysis = (text: string) => {
+    setAnalysis(text);
+    if (text) {
+      localStorage.setItem('secAudit_lastAnalysis', text);
+    } else {
+      localStorage.removeItem('secAudit_lastAnalysis');
+    }
+  };
+
   const handleAnalyzeCode = async () => {
     if (!code.trim()) return;
     setLoading(true);
-    setAnalysis('');
+    updateAnalysis('');
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3.1-pro-preview',
@@ -31,10 +49,10 @@ export default function Analyzer() {
         Código:
         ${code}`,
       });
-      setAnalysis(response.text || 'Nenhuma análise retornada.');
+      updateAnalysis(response.text || 'Nenhuma análise retornada.');
     } catch (error) {
       console.error(error);
-      setAnalysis('Erro ao analisar o código. Verifique o console.');
+      updateAnalysis('Erro ao analisar o código. Verifique o console.');
     } finally {
       setLoading(false);
     }
@@ -42,7 +60,7 @@ export default function Analyzer() {
 
   const handleAnalyzeFile = async (file: File) => {
     setLoading(true);
-    setAnalysis('');
+    updateAnalysis('');
     try {
       const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
       const ext = file.name.split('.').pop()?.toLowerCase() || 'desconhecido';
@@ -66,10 +84,10 @@ export default function Analyzer() {
         
         Responda em Português do Brasil (PT-BR) com formatação Markdown clara e direta.`,
       });
-      setAnalysis(response.text || 'Nenhuma análise retornada.');
+      updateAnalysis(response.text || 'Nenhuma análise retornada.');
     } catch (error) {
       console.error(error);
-      setAnalysis('Erro ao analisar os metadados do arquivo. Verifique o console.');
+      updateAnalysis('Erro ao analisar os metadados do arquivo. Verifique o console.');
     } finally {
       setLoading(false);
     }
@@ -80,7 +98,7 @@ export default function Analyzer() {
     setSelectedFile(file);
     setIsUploading(true);
     setUploadProgress(0);
-    setAnalysis('');
+    updateAnalysis('');
 
     try {
       const slice = file.slice(0, 4);
@@ -141,7 +159,7 @@ export default function Analyzer() {
   const clearFile = () => {
     setSelectedFile(null);
     setUploadProgress(0);
-    setAnalysis('');
+    updateAnalysis('');
     setFileError(null);
   };
 
