@@ -2,6 +2,35 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ai } from '../lib/gemini';
 import { ShieldAlert, Loader2, Code2, UploadCloud, FileBox, CheckCircle, X, AlertTriangle, FileCode, Save, Play, Download, Trash2, FileText, Binary } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import Editor from 'react-simple-code-editor';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-markup';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/themes/prism-tomorrow.css';
+
+// Define Smali grammar for Prism
+Prism.languages.smali = {
+  'comment': /#.*/,
+  'string': {
+    pattern: /"(?:[^\r\n\\"]|\\.)*"/,
+    greedy: true
+  },
+  'class-name': {
+    pattern: /(?:L[^\s;]+;)/,
+    alias: 'class'
+  },
+  'directive': {
+    pattern: /\.[a-z]+/,
+    alias: 'keyword'
+  },
+  'register': {
+    pattern: /\b[vp]\d+\b/,
+    alias: 'variable'
+  },
+  'number': /\b0x[a-fA-F0-9]+\b|\b\d+\b/,
+  'punctuation': /[{}[\];(),.:]/
+};
 
 type InputMode = 'code' | 'file';
 
@@ -129,9 +158,20 @@ export default function Analyzer() {
         };
         reader.readAsArrayBuffer(file);
       } else {
-        setVirtualFiles([]);
+        // Para arquivos de texto (js, txt, json, etc)
         setPatchSuccess(false);
         setHexData(null);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          setVirtualFiles([{
+            path: file.name,
+            content: content,
+            originalContent: content
+          }]);
+          setActiveFileIndex(0);
+        };
+        reader.readAsText(file);
       }
     } catch (error) {
       console.error(error);
@@ -449,13 +489,40 @@ export default function Analyzer() {
                           ))}
                         </div>
                         
-                        {/* Textarea Editor */}
-                        <div className="flex-1 relative group">
-                          <textarea
+                        {/* Textarea Editor -> React Simple Code Editor */}
+                        <div className="flex-1 relative group overflow-auto bg-[#1d1f21]">
+                          <Editor
                             value={virtualFiles[activeFileIndex].content}
-                            onChange={handleEditorChange}
-                            spellCheck="false"
-                            className="w-full h-full min-h-[250px] bg-transparent p-4 font-mono text-xs md:text-sm resize-none focus:outline-none text-neon-cyan/90 leading-relaxed"
+                            onValueChange={(code) => {
+                              const newFiles = [...virtualFiles];
+                              newFiles[activeFileIndex].content = code;
+                              setVirtualFiles(newFiles);
+                            }}
+                            highlight={(code) => {
+                              const ext = virtualFiles[activeFileIndex].path.split('.').pop() || '';
+                              let lang = Prism.languages.clike;
+                              if (ext === 'java') lang = Prism.languages.java;
+                              else if (ext === 'xml') lang = Prism.languages.markup;
+                              else if (ext === 'js' || ext === 'javascript') lang = Prism.languages.javascript;
+                              else if (ext === 'smali' && Prism.languages.smali) lang = Prism.languages.smali;
+                              
+                              // Fallback seguro caso a linguagem não esteja carregada
+                              if (!lang) lang = Prism.languages.clike || Prism.languages.javascript;
+                              
+                              try {
+                                return Prism.highlight(code, lang, ext);
+                              } catch (e) {
+                                return code; // fallback sem highlight se der erro
+                              }
+                            }}
+                            padding={16}
+                            style={{
+                              fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                              fontSize: 14,
+                              minHeight: '250px',
+                            }}
+                            className="w-full h-full min-h-[250px] focus:outline-none"
+                            textareaClassName="focus:outline-none"
                           />
                         </div>
 
