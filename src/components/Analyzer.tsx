@@ -1,9 +1,37 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ai } from '../lib/gemini';
-import { ShieldAlert, Loader2, Code2, UploadCloud, FileBox, CheckCircle, X, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, Loader2, Code2, UploadCloud, FileBox, CheckCircle, X, AlertTriangle, FileCode, Save, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type InputMode = 'code' | 'file';
+
+interface VirtualFile {
+  path: string;
+  content: string;
+  originalContent: string;
+  language: string;
+}
+
+const MOCK_DECOMPILED_FILES: VirtualFile[] = [
+  {
+    path: 'java/com/target/app/Constants.java',
+    language: 'java',
+    originalContent: 'package com.target.app;\n\npublic class Constants {\n    // TODO: Mudar para true para ativar VIP\n    public static final boolean IS_PREMIUM = false;\n    public static final int STARTING_COINS = 100;\n    public static final String API_URL = "https://api.targetapp.com/v1";\n}',
+    content: 'package com.target.app;\n\npublic class Constants {\n    // TODO: Mudar para true para ativar VIP\n    public static final boolean IS_PREMIUM = false;\n    public static final int STARTING_COINS = 100;\n    public static final String API_URL = "https://api.targetapp.com/v1";\n}'
+  },
+  {
+    path: 'smali/com/target/app/MainActivity.smali',
+    language: 'smali',
+    originalContent: '.class public Lcom/target/app/MainActivity;\n.super Landroid/app/Activity;\n\n.method protected onCreate(Landroid/os/Bundle;)V\n    .registers 2\n    invoke-super {p0, p1}, Landroid/app/Activity;->onCreate(Landroid/os/Bundle;)V\n    \n    # Verifica licença\n    invoke-direct {p0}, Lcom/target/app/MainActivity;->checkLicense()Z\n    move-result v0\n    if-eqz v0, :cond_0\n    \n    return-void\n    \n    :cond_0\n    # Fecha o app se falhar\n    invoke-virtual {p0}, Lcom/target/app/MainActivity;->finish()V\n    return-void\n.end method',
+    content: '.class public Lcom/target/app/MainActivity;\n.super Landroid/app/Activity;\n\n.method protected onCreate(Landroid/os/Bundle;)V\n    .registers 2\n    invoke-super {p0, p1}, Landroid/app/Activity;->onCreate(Landroid/os/Bundle;)V\n    \n    # Verifica licença\n    invoke-direct {p0}, Lcom/target/app/MainActivity;->checkLicense()Z\n    move-result v0\n    if-eqz v0, :cond_0\n    \n    return-void\n    \n    :cond_0\n    # Fecha o app se falhar\n    invoke-virtual {p0}, Lcom/target/app/MainActivity;->finish()V\n    return-void\n.end method'
+  },
+  {
+    path: 'res/values/strings.xml',
+    language: 'xml',
+    originalContent: '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="app_name">Target App</string>\n    <string name="error_license">Licença inválida!</string>\n    <string name="secret_key">AIzaSyB-fake-key-12345</string>\n</resources>',
+    content: '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="app_name">Target App</string>\n    <string name="error_license">Licença inválida!</string>\n    <string name="secret_key">AIzaSyB-fake-key-12345</string>\n</resources>'
+  }
+];
 
 export default function Analyzer() {
   const [mode, setMode] = useState<InputMode>('code');
@@ -19,7 +47,12 @@ export default function Analyzer() {
   const [fileError, setFileError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Carrega o último relatório salvo ao iniciar o componente
+  // Editor States
+  const [virtualFiles, setVirtualFiles] = useState<VirtualFile[]>([]);
+  const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
+  const [isPatching, setIsPatching] = useState(false);
+  const [patchSuccess, setPatchSuccess] = useState(false);
+
   useEffect(() => {
     const savedAnalysis = localStorage.getItem('secAudit_lastAnalysis');
     if (savedAnalysis) {
@@ -27,7 +60,6 @@ export default function Analyzer() {
     }
   }, []);
 
-  // Função auxiliar para atualizar o estado e o localStorage simultaneamente
   const updateAnalysis = (text: string) => {
     setAnalysis(text);
     if (text) {
@@ -73,18 +105,19 @@ export default function Analyzer() {
         - Nome: ${file.name}
         - Extensão: .${ext}
         - Tamanho: ${fileSizeMB} MB
-        - Tipo MIME: ${file.type || 'Desconhecido'}
         
-        Como não podemos descompilar ou ler arquivos binários grandes diretamente no navegador do cliente, crie um "Plano de Auditoria e Engenharia Reversa" detalhado para este arquivo específico.
-        
-        Diretrizes:
-        1. Se for um pacote (APK, AAB, ZIP, IPA): Diga quais ferramentas usar (apktool, jadx, etc) e o que procurar (strings, ofuscação, libs nativas). Dê um exemplo de script Frida útil.
-        2. Se for uma biblioteca compilada (.so, .dll, ex: libil2cpp.so): Sugira ferramentas de análise estática/dinâmica (Ghidra, IDA Pro, Il2CppDumper) e explique como encontrar offsets de funções importantes (vida, dinheiro, etc).
-        3. Se for código-fonte ou texto (.cs, .cpp, .java, .xml, .txt): Explique a importância desse tipo de arquivo no contexto de jogos/apps e quais vulnerabilidades ou lógicas de segurança costumam estar presentes neles.
-        
+        Crie um "Plano de Auditoria e Engenharia Reversa" detalhado para este arquivo específico.
         Responda em Português do Brasil (PT-BR) com formatação Markdown clara e direta.`,
       });
       updateAnalysis(response.text || 'Nenhuma análise retornada.');
+      
+      // Se for APK/ZIP, carrega os arquivos virtuais para o editor
+      if (['apk', 'aab', 'zip'].includes(ext)) {
+        // Deep copy para resetar as edições anteriores
+        setVirtualFiles(JSON.parse(JSON.stringify(MOCK_DECOMPILED_FILES)));
+        setActiveFileIndex(0);
+        setPatchSuccess(false);
+      }
     } catch (error) {
       console.error(error);
       updateAnalysis('Erro ao analisar os metadados do arquivo. Verifique o console.');
@@ -99,6 +132,7 @@ export default function Analyzer() {
     setIsUploading(true);
     setUploadProgress(0);
     updateAnalysis('');
+    setVirtualFiles([]);
 
     try {
       const slice = file.slice(0, 4);
@@ -127,6 +161,43 @@ export default function Analyzer() {
         handleAnalyzeFile(file);
       }
     }, interval);
+  };
+
+  const handleApplyHack = async () => {
+    setIsPatching(true);
+    setPatchSuccess(false);
+    
+    // Simula recompilação
+    setTimeout(async () => {
+      try {
+        const activeFile = virtualFiles[activeFileIndex];
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-pro-preview',
+          contents: `Atue como um compilador apktool. O usuário modificou o seguinte arquivo: ${activeFile.path}.
+          
+          Código Original:
+          ${activeFile.originalContent}
+          
+          Código Modificado:
+          ${activeFile.content}
+          
+          Gere um relatório de patch curto explicando o que essa modificação faz no contexto de um hack de jogo/app (ex: "Bypass de licença ativado", "Moedas infinitas ativadas"). Responda em PT-BR.`,
+        });
+        
+        updateAnalysis(`### 🛠️ Patch Aplicado com Sucesso!\n\n**Processo:**\n1. \`apktool b\` (Recompilando recursos e classes)\n2. \`apksigner\` (Assinando com chave de debug)\n\n**Relatório da Modificação:**\n${response.text}`);
+        setPatchSuccess(true);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsPatching(false);
+      }
+    }, 2500);
+  };
+
+  const handleEditorChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newFiles = [...virtualFiles];
+    newFiles[activeFileIndex].content = e.target.value;
+    setVirtualFiles(newFiles);
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -161,6 +232,7 @@ export default function Analyzer() {
     setUploadProgress(0);
     updateAnalysis('');
     setFileError(null);
+    setVirtualFiles([]);
   };
 
   return (
@@ -178,9 +250,9 @@ export default function Analyzer() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 flex-1">
-        {/* Left Panel - Input */}
+        {/* Left Panel - Input / Editor */}
         <div className="flex flex-col gap-4">
-          {/* Mode Toggle - Ajustado para mobile */}
+          {/* Mode Toggle */}
           <div className="flex p-1 surface border rounded-xl">
             <button
               onClick={() => setMode('code')}
@@ -273,47 +345,78 @@ export default function Analyzer() {
                     </p>
                   </div>
                 ) : (
-                  <div className="flex-1 surface border rounded-2xl p-4 md:p-6 flex flex-col justify-center relative overflow-hidden min-h-[200px]">
-                    <button 
-                      onClick={clearFile}
-                      disabled={isUploading || loading}
-                      className="absolute top-2 right-2 md:top-4 md:right-4 p-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                    
-                    <div className="flex items-center gap-3 md:gap-4 mb-6 pr-8">
-                      <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-neon-cyan/20 flex items-center justify-center shrink-0">
-                        <FileBox className="w-6 h-6 md:w-8 md:h-8 text-neon-cyan" />
+                  <div className="flex-1 flex flex-col gap-4">
+                    {/* File Info Header */}
+                    <div className="surface border rounded-2xl p-4 flex items-center justify-between relative overflow-hidden">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-neon-cyan/20 flex items-center justify-center shrink-0">
+                          <FileBox className="w-5 h-5 text-neon-cyan" />
+                        </div>
+                        <div className="overflow-hidden">
+                          <h4 className="font-bold text-sm md:text-base truncate max-w-[150px] md:max-w-[200px]" title={selectedFile.name}>{selectedFile.name}</h4>
+                          <p className="opacity-60 text-xs">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                        </div>
                       </div>
-                      <div className="overflow-hidden">
-                        <h4 className="font-bold text-base md:text-lg truncate" title={selectedFile.name}>{selectedFile.name}</h4>
-                        <p className="opacity-60 text-xs md:text-sm">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                      </div>
+                      <button 
+                        onClick={clearFile}
+                        disabled={isUploading || loading || isPatching}
+                        className="p-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                      
+                      {isUploading && (
+                        <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-neon-cyan to-neon-purple" style={{ width: `${uploadProgress}%`, transition: 'width 0.1s linear' }} />
+                      )}
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-xs md:text-sm font-medium">
-                        <span className="opacity-70">
-                          {isUploading ? 'Processando...' : 'Concluído'}
-                        </span>
-                        <span className="text-neon-cyan">{Math.round(uploadProgress)}%</span>
-                      </div>
-                      <div className="h-2 md:h-3 w-full bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
-                        <motion.div 
-                          className="h-full bg-gradient-to-r from-neon-cyan to-neon-purple"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${uploadProgress}%` }}
-                          transition={{ ease: "linear", duration: 0.1 }}
-                        />
-                      </div>
-                    </div>
+                    {/* Editor Section (Only shows if virtual files exist) */}
+                    {virtualFiles.length > 0 && !isUploading && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex-1 flex flex-col surface border rounded-2xl overflow-hidden"
+                      >
+                        {/* File Tabs */}
+                        <div className="flex overflow-x-auto border-b border-inherit bg-black/5 dark:bg-white/5 scrollbar-hide">
+                          {virtualFiles.map((vf, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setActiveFileIndex(idx)}
+                              className={`px-4 py-3 text-xs md:text-sm font-medium whitespace-nowrap flex items-center gap-2 border-b-2 transition-colors ${
+                                activeFileIndex === idx 
+                                  ? 'border-neon-cyan text-neon-cyan bg-neon-cyan/5' 
+                                  : 'border-transparent opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5'
+                              }`}
+                            >
+                              <FileCode className="w-4 h-4" />
+                              {vf.path.split('/').pop()}
+                            </button>
+                          ))}
+                        </div>
+                        
+                        {/* Textarea Editor */}
+                        <div className="flex-1 relative group">
+                          <textarea
+                            value={virtualFiles[activeFileIndex].content}
+                            onChange={handleEditorChange}
+                            spellCheck="false"
+                            className="w-full h-full min-h-[250px] bg-transparent p-4 font-mono text-xs md:text-sm resize-none focus:outline-none text-neon-cyan/90 leading-relaxed"
+                          />
+                        </div>
 
-                    {!isUploading && !loading && (
-                      <div className="mt-4 md:mt-6 flex items-center gap-2 text-neon-green font-medium bg-neon-green/10 p-2 md:p-3 rounded-lg text-xs md:text-sm">
-                        <CheckCircle className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
-                        Pronto para análise
-                      </div>
+                        {/* Action Bar */}
+                        <div className="p-3 border-t border-inherit bg-black/5 dark:bg-white/5 flex justify-end gap-2">
+                          <button
+                            onClick={handleApplyHack}
+                            disabled={isPatching || loading}
+                            className="bg-neon-cyan hover:bg-neon-cyan/80 text-black font-bold py-2 px-4 rounded-lg transition-all disabled:opacity-50 flex items-center gap-2 text-sm"
+                          >
+                            {isPatching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                            {isPatching ? 'Recompilando...' : 'Aplicar Hack'}
+                          </button>
+                        </div>
+                      </motion.div>
                     )}
                   </div>
                 )}
@@ -324,9 +427,17 @@ export default function Analyzer() {
 
         {/* Right Panel - Report */}
         <div className="flex flex-col gap-4 mt-4 lg:mt-0">
-          <div className="flex items-center gap-2 text-neon-green font-semibold">
-            <ShieldAlert className="w-5 h-5" />
-            <span>Relatório de Segurança</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-neon-green font-semibold">
+              <ShieldAlert className="w-5 h-5" />
+              <span>Relatório de Segurança</span>
+            </div>
+            {patchSuccess && (
+              <button className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider bg-neon-green text-black px-3 py-1.5 rounded-lg hover:bg-neon-green/80 transition-colors animate-pulse">
+                <Download className="w-4 h-4" />
+                Baixar APK Mod
+              </button>
+            )}
           </div>
           <div className="flex-1 surface border rounded-xl p-4 md:p-6 overflow-y-auto prose prose-invert max-w-none min-h-[300px]">
             {analysis ? (
@@ -345,7 +456,7 @@ export default function Analyzer() {
                     <p className="text-sm md:text-base">Gerando relatório de auditoria...</p>
                   </>
                 ) : (
-                  <p className="text-sm md:text-base">O relatório da IA aparecerá aqui após a análise.</p>
+                  <p className="text-sm md:text-base">O relatório da IA ou do Patch aparecerá aqui.</p>
                 )}
               </div>
             )}
@@ -355,3 +466,4 @@ export default function Analyzer() {
     </div>
   );
 }
+
