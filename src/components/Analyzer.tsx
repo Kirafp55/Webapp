@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ai } from '../lib/gemini';
-import { ShieldAlert, Loader2, Code2, UploadCloud, FileBox, CheckCircle, X, AlertTriangle, FileCode, Save, Play, Download, Trash2, FileText } from 'lucide-react';
+import { ShieldAlert, Loader2, Code2, UploadCloud, FileBox, CheckCircle, X, AlertTriangle, FileCode, Save, Play, Download, Trash2, FileText, Binary } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type InputMode = 'code' | 'file';
@@ -52,6 +52,7 @@ export default function Analyzer() {
   const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
   const [isPatching, setIsPatching] = useState(false);
   const [patchSuccess, setPatchSuccess] = useState(false);
+  const [hexData, setHexData] = useState<Uint8Array | null>(null);
 
   useEffect(() => {
     const savedAnalysis = localStorage.getItem('secAudit_lastAnalysis');
@@ -117,6 +118,20 @@ export default function Analyzer() {
         setVirtualFiles(JSON.parse(JSON.stringify(MOCK_DECOMPILED_FILES)));
         setActiveFileIndex(0);
         setPatchSuccess(false);
+        setHexData(null);
+      } else if (['so', 'dll', 'dex', 'bin', 'dat', 'exe', 'o', 'elf'].includes(ext)) {
+        setVirtualFiles([]);
+        setPatchSuccess(false);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const buffer = e.target?.result as ArrayBuffer;
+          setHexData(new Uint8Array(buffer));
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        setVirtualFiles([]);
+        setPatchSuccess(false);
+        setHexData(null);
       }
     } catch (error) {
       console.error(error);
@@ -222,6 +237,7 @@ export default function Analyzer() {
   const handleClearReport = () => {
     updateAnalysis('');
     setPatchSuccess(false);
+    setHexData(null);
   };
 
   const handleDownloadReport = () => {
@@ -270,6 +286,7 @@ export default function Analyzer() {
     updateAnalysis('');
     setFileError(null);
     setVirtualFiles([]);
+    setHexData(null);
   };
 
   return (
@@ -452,6 +469,56 @@ export default function Analyzer() {
                             {isPatching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                             {isPatching ? 'Recompilando...' : 'Aplicar Hack'}
                           </button>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Hex Viewer Section (Only shows if hexData exists) */}
+                    {hexData && !isUploading && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex-1 flex flex-col surface border rounded-2xl overflow-hidden min-h-[300px]"
+                      >
+                        <div className="flex items-center px-4 py-3 bg-black/5 dark:bg-white/5 border-b border-inherit">
+                          <div className="flex items-center gap-2 text-neon-green font-mono text-xs md:text-sm">
+                            <Binary className="w-4 h-4" />
+                            <span>Hex Viewer: {selectedFile.name} (Primeiros 4KB)</span>
+                          </div>
+                        </div>
+                        <div className="flex-1 overflow-auto p-4 font-mono text-[10px] md:text-xs text-gray-400 leading-relaxed whitespace-pre bg-[#0a0a0a]">
+                          {(() => {
+                            const MAX_BYTES = 4096;
+                            const slice = hexData.slice(0, MAX_BYTES);
+                            const rows = [];
+                            for (let i = 0; i < slice.length; i += 16) {
+                              const chunk = slice.slice(i, i + 16);
+                              const offset = i.toString(16).padStart(8, '0');
+                              
+                              let hexPart = '';
+                              let asciiPart = '';
+                              
+                              for (let j = 0; j < 16; j++) {
+                                if (j < chunk.length) {
+                                  const byte = chunk[j];
+                                  hexPart += byte.toString(16).padStart(2, '0').toUpperCase() + ' ';
+                                  asciiPart += (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : '.';
+                                } else {
+                                  hexPart += '   ';
+                                  asciiPart += ' ';
+                                }
+                              }
+                              
+                              rows.push(
+                                <div key={i} className="flex hover:bg-white/5 px-2 rounded w-max">
+                                  <span className="text-gray-500 mr-4 select-none">{offset}</span>
+                                  <span className="text-neon-green/80 mr-4 w-[47ch]">{hexPart}</span>
+                                  <span className="text-gray-300">{asciiPart}</span>
+                                </div>
+                              );
+                            }
+                            return rows;
+                          })()}
                         </div>
                       </motion.div>
                     )}
